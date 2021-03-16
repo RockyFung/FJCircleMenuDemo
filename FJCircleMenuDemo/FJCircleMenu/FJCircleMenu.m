@@ -4,10 +4,11 @@
 //
 //  Created by 冯剑 on 2021/3/14.
 //
-
-#import "FJCircleMenu.h"
+import "FJCircleMenu.h"
 #define SCREEN_WIDTH [UIScreen mainScreen].bounds.size.width
 #define SCREEN_HEIGHT [UIScreen mainScreen].bounds.size.height
+#define KedgeGap 10 // 到屏幕边的距离
+#define KOffsetCount 2 // 偏移几个item的距离
 @interface FJCircleMenu()
 ///外圆
 @property (nonatomic, weak) UIImageView *circleView;
@@ -39,6 +40,8 @@
 @property(nonatomic, assign) FJCircleMenuType type;
 
 @property(nonatomic, strong) UIView *centerView;
+// 两个item的圆心距离
+@property(nonatomic, assign) CGFloat itemDistance;
 @end
 
 @implementation FJCircleMenu
@@ -118,6 +121,10 @@
         [self.circleView addSubview:button];
     }
     
+    // 两个按钮之间的距离
+    UIView *view = viewArray.firstObject;
+    self.itemDistance = ((SCREEN_WIDTH - 40 - KedgeGap*2 - view.frame.size.width)/(self.showBtnCount - 1));
+    
     [self layoutBtn];
     
     //加转动手势
@@ -148,12 +155,12 @@
     
     for (NSInteger i=0; i<self.subViewArray.count ;i++) {// 178,245
         
-        margin = i * ((SCREEN_WIDTH - 20 - view.frame.size.width)/(self.showBtnCount - 1));
+        margin = i * self.itemDistance;
         
-        xx = 10 + subCenterX + fabs(self.subViewX) + margin + self.moveNum;
+        xx = KedgeGap + subCenterX + fabs(self.subViewX) + margin + self.moveNum;
         // 已知圆心、半径与x值求y值：（x-a）^2 + (y - b)^2 = r^2。
         // y = sqrt(r^2 - (x-a)^2) + b
-        CGFloat r = self.radius - self.circleMargin / 2; // 半径
+        CGFloat r = self.radius - self.circleMargin / 2; // item圆心轨迹半径
         CGFloat a = self.radius; // 圆心x
         CGFloat b = self.radius; // 圆心y
         if (self.type == FJCircleMenuTypeTop) {
@@ -162,7 +169,7 @@
             yy = sqrt(r * r - (xx - a) * (xx - a)) + b;
         }
         UIButton *button=[self.subViewArray objectAtIndex:i];
-        if (xx >= self.radius - (self.radius - self.circleMargin / 2) && xx <= self.radius + (self.radius - self.circleMargin / 2)) {
+        if (xx >= self.radius - r && xx <= self.radius + r) {
             
 //            NSLog(@"~~~~~~~%@",button);
             if (self.isEndMove) {
@@ -177,7 +184,7 @@
         // 距离公式 l = sqrt((x1-x2)^2 + (y1-y2)^2)
         // 角度公式 圆心角度数 n = 2 arcsin(l/2r)
         // 中间圆的圆心（a, b-r）
-        CGFloat l = sqrt((a - xx)*(a - xx) + (b - r - yy)*(b - r - yy)); // 各点到中间圆的弧长
+        CGFloat l = sqrt(( a- xx)*(a - xx) + (b - r - yy)*(b - r - yy)); // 各点到中间圆的弧长
         CGFloat n = 0;
         if (self.type == FJCircleMenuTypeTop) {
             n =  2 * asin(l / (2 * r)); // 根据弧长和半径求角度
@@ -185,7 +192,7 @@
                 n = -n;
             }
             if (fabs(n) >= 0) {
-                button.transform = CGAffineTransformMakeRotation(n);
+//                button.transform = CGAffineTransformMakeRotation(n);
             }
             
         }else{
@@ -212,6 +219,9 @@
     
     CGFloat subViewW = subView.frame.size.width;
     
+    // 向中间偏移的距离
+    CGFloat offset = KOffsetCount * self.itemDistance;
+    
     if(pgr.state==UIGestureRecognizerStateBegan){
         
         self.endMove = NO;
@@ -220,27 +230,27 @@
         
     }else if (pgr.state==UIGestureRecognizerStateChanged){
 //        self.centerView.transform = CGAffineTransformMakeScale(1.0, 1.0);
-//        self.centerView.transform = CGAffineTransformIdentity;
+        self.centerView.transform = CGAffineTransformIdentity;
 //        self.centerView.transform = CGAffineTransformScale(self.centerView.transform, 1.0, 1.0);
         self.movePoint= [pgr locationInView:self];
+        
+        // 手指点到开始点的距离
         self.moveX = sqrt(fabs(self.movePoint.x - self.beginPoint.x) * fabs(self.movePoint.x - self.beginPoint.x) + fabs(self.movePoint.y - self.beginPoint.y) * fabs(self.movePoint.y - self.beginPoint.y));
         
         if (self.movePoint.x>self.beginPoint.x) {
-            self.moveNum += self.moveX;
+            self.moveNum += self.moveX; // 向右移动
         } else{
-            self.moveNum -= self.moveX;
+            self.moveNum -= self.moveX; // 向左移动
         }
         
         // 限制最左边subview的位置
-        CGFloat subMinX = SCREEN_WIDTH/2 - subViewW/2;
-        if (self.moveNum > subMinX) {
-            self.moveNum = subMinX;
+        if (self.moveNum > offset) {
+            self.moveNum = offset;
         }
         
         // 限制最右边subview的位置
-        CGFloat subMaxX = -((SCREEN_WIDTH - 20 - subViewW)/(self.showBtnCount - 1)) * (self.subViewArray.count - self.showBtnCount) - (SCREEN_WIDTH/2 - subViewW/2);
-        if (self.moveNum < subMaxX) {
-            self.moveNum = subMaxX ;
+        if (self.moveNum < - self.itemDistance * (self.subViewArray.count - self.showBtnCount) - offset) {
+            self.moveNum = - self.itemDistance * (self.subViewArray.count - self.showBtnCount) - offset;
         }
         
         [self layoutBtn];
@@ -255,25 +265,26 @@
 //        for (int i = 0; i < self.subViewArray.count - self.showBtnCount + 1; i ++) {
         for (int i = 0; i < self.subViewArray.count; i ++) {
             // 找到中间的subview
-            CGFloat add = SCREEN_WIDTH/2 - subViewW/2 - 15;
-            if (self.moveNum > - (SCREEN_WIDTH - 20 - subViewW) / (self.showBtnCount - 1) + subViewW / 2 + 10 -(SCREEN_WIDTH - 20 - subViewW) / (self.showBtnCount - 1) * i + add){
-                self.moveNum = -(SCREEN_WIDTH - 20 - subViewW) / (self.showBtnCount - 1) * i + add;
-                UIView *centerView = self.subViewArray[i];
+            for (int i = 0; i < self.subViewArray.count; i ++) {
+                if (self.moveNum > subViewW / 2 + KedgeGap - self.itemDistance * (i+1) + offset){
+                    self.moveNum = - self.itemDistance * i + offset;
+                    UIView *centerView = self.subViewArray[i];
                 if (self.delegate && [self.delegate respondsToSelector:@selector(camberMenuSelectedCenterSubView:index:)]) {
                     
                     [self.delegate camberMenuSelectedCenterSubView:centerView index:i];
                 }
                 
-                self.centerView = centerView;
-                break;
+                    self.centerView = centerView;
+                    break;
+                }
+            }
+        
+            [self layoutBtn];
+            
+            if (self.centerView) {
+                [self transformCenterView:self.centerView];
             }
         }
-        
-        [self layoutBtn];
-        if (self.centerView ) {
-            [self transformCenterView:self.centerView];
-        }
-        
     }
 }
 
@@ -281,11 +292,11 @@
     if (view == self.centerView) {
         return;
     }
-    CGFloat w = view.frame.size.width;
-    CGFloat add = SCREEN_WIDTH/2 - w/2 - 10;
+    self.centerView.transform = CGAffineTransformIdentity;
+    CGFloat offset = KOffsetCount * self.itemDistance;
     NSInteger index = [self.subViewArray indexOfObject:view];
     self.centerView = view;
-    self.moveNum = -(SCREEN_WIDTH - 20 - w) / (self.showBtnCount - 1) * index + add;
+    self.moveNum = -self.itemDistance * index + offset;
     [UIView animateWithDuration:0.2 animations:^{
         [self layoutBtn];
     } completion:^(BOOL finished) {
@@ -299,8 +310,15 @@
 }
 
 - (void)transformCenterView:(UIView *)view{
-//    view.transform = CGAffineTransformMakeScale(1.2, 1.2);
-    view.transform = CGAffineTransformScale(view.transform, 1.2, 1.2);
+    view.transform = CGAffineTransformMakeScale(1.1, 1.1);
+//    view.transform = CGAffineTransformScale(view.transform, 1.2, 1.2);
+//    view.transform = CGAffineTransformTranslate(view.transform, 0, -10);
+}
+
+- (void)cancelSubviewsTransform{
+    [self.subViewArray enumerateObjectsUsingBlock:^(UIView*  _Nonnull obj, NSUInteger idx, BOOL * _Nonnull stop) {
+        obj.transform = CGAffineTransformIdentity;
+    }];
 }
 
 - (NSArray *)subViewArray{
@@ -313,3 +331,4 @@
 
 
 @end
+
